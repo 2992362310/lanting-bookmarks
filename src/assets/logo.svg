@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <defs>
+    <style>
+      .stroke{stroke:currentColor;fill:none;stroke-width:1.5;}
+      .fill{fill:currentColor;}
+    </style>
+  </defs>
+  <rect x="2.5" y="2.5" width="19" height="19" rx="5" class="stroke"/>
+  <path class="fill" d="M9 6.5h6a1.5 1.5 0 0 1 1.5 1.5v10l-4.5-3-4.5 3v-10A1.5 1.5 0 0 1 9 6.5z"/>
+</svg>

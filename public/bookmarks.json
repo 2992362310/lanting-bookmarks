@@ -1,0 +1,23 @@
+{
+  "folders": [{ "id": "music", "name": "音乐" }],
+  "bookmarks": [
+    {
+      "id": "qqmp3",
+      "title": "QQMP3 音乐下载",
+      "url": "https://www.qqmp3.vip/",
+      "description": "音乐资源站点，提供 QQ 音乐下载入口。",
+      "tags": ["音乐"],
+      "folderId": "music",
+      "date": "2026-01-13"
+    },
+    {
+      "id": "gdstudio-music",
+      "title": "Gdstudio 音乐站",
+      "url": "https://music.gdstudio.org/",
+      "description": "在线音乐与相关资源聚集。",
+      "tags": ["音乐"],
+      "folderId": "music",
+      "date": "2026-01-13"
+    }
+  ]
+}
