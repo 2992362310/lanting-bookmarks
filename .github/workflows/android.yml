@@ -52,7 +52,7 @@ jobs:
         # 构建 Debug 包 (会自动使用 debug 密钥签名，可直接安装)
         # 指定生成 APK，并构建通用架构或指定架构
         # 如果不加 --debug，默认是 release 构建，需要配置签名密钥否则无法安装
-        run: pnpm tauri android build --apk --debug
+        run: pnpm tauri android build --debug
         env:
           NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
 
