@@ -1,0 +1,92 @@
+name: Android Build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "zulu"
+          java-version: "17"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+
+      - name: Install Linux dependencies
+        # Tauri CLI on Linux needs these for build scripts, even when targeting Android
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.0-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Install project dependencies
+        run: pnpm install
+
+      - name: Build Android APK (Debug)
+        # 构建 Debug 包 (会自动使用 debug 密钥签名，可直接安装)
+        # 指定生成 APK，并构建通用架构或指定架构
+        # 如果不加 --debug，默认是 release 构建，需要配置签名密钥否则无法安装
+        run: pnpm tauri android build --apk --debug
+        env:
+          NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+
+      - name: Upload APK Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apks
+          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+
+      - name: Prepare Release Files
+        # 仅在非 PR 触发时运行（例如 push 到 main 分支）
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p release_apk
+          # 查找并复制 APK 文件，通常是 universal-debug 或者架构特定的 APK
+          find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" -exec cp {} release_apk/ \;
+          cd release_apk
+          # 重命名以便于识别，例如 lanting-bookmarks-debug.apk
+          # 这里简单地在原文件名前加上 lanting-
+          for file in *.apk; do
+             mv "$file" "lanting-$file"
+          done
+
+      - name: Update Nightly Release
+        # 使用 softprops/action-gh-release 自动发布到 tag 为 nightly 的 Release 中
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: Latest Nightly Build
+          body: "Auto-generated nightly build."
+          files: release_apk/*.apk
+          prerelease: true
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
