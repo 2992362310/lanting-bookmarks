@@ -23,15 +23,15 @@ const drawerOpen = ref(false);
   >
     <input id="main-drawer" type="checkbox" class="drawer-toggle" v-model="drawerOpen" />
 
-    <div class="drawer-content flex flex-col h-full min-w-0">
+    <div class="drawer-content flex flex-col h-full min-w-0 overflow-hidden">
       <Header @open-settings="showSettings = true" />
 
-      <main class="flex-1 overflow-y-auto p-4 md:p-6 bg-base-100">
+      <main class="flex-1 overflow-hidden relative flex flex-col bg-base-100">
         <router-view />
       </main>
     </div>
 
-    <div class="drawer-side z-50">
+    <div class="drawer-side z-50 overflow-hidden">
       <label for="main-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
       <Sidebar @open-settings="showSettings = true" @close-drawer="drawerOpen = false" />
     </div>

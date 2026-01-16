@@ -179,7 +179,7 @@ onBeforeUnmount(() => {
     </router-link>
 
     <!-- Navigation Menu -->
-    <div class="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar px-2 py-2">
+    <div class="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar px-2 py-2 min-h-0">
       <ul class="menu gap-1 w-full p-0">
         <li>
           <button

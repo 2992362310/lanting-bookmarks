@@ -129,8 +129,8 @@ const handleSubmit = async () => {
     } else {
       await store.addBookmark({
         ...payload,
-        // Basic icon fallback
-        icon: `https://www.google.com/s2/favicons?domain=${new URL(form.url).hostname}&sz=64`,
+        // Privacy-friendly icon fallback (DuckDuckGo)
+        icon: `https://icons.duckduckgo.com/ip3/${new URL(form.url).hostname}.ico`,
       });
     }
 
