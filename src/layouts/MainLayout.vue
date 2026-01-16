@@ -8,18 +8,32 @@ import SettingsModal from "@/components/layout/SettingsModal.vue";
 const route = useRoute();
 const isFullScreen = computed(() => route.name === "Browser");
 const showSettings = ref(false);
+const drawerOpen = ref(false);
 </script>
 
 <template>
-  <div class="flex h-screen w-full bg-base-100 text-base-content overflow-hidden">
-    <Sidebar v-if="!isFullScreen" @open-settings="showSettings = true" />
+  <div v-if="isFullScreen" class="h-screen w-full bg-base-100 text-base-content overflow-hidden">
+    <router-view />
+    <SettingsModal :show="showSettings" @close="showSettings = false" />
+  </div>
 
-    <div class="flex flex-col flex-1 h-full min-w-0">
-      <Header v-if="!isFullScreen" @open-settings="showSettings = true" />
+  <div
+    v-else
+    class="drawer lg:drawer-open h-screen w-full bg-base-100 text-base-content overflow-hidden"
+  >
+    <input id="main-drawer" type="checkbox" class="drawer-toggle" v-model="drawerOpen" />
 
-      <main class="flex-1 overflow-y-auto p-6 bg-base-100" :class="{ '!p-0': isFullScreen }">
+    <div class="drawer-content flex flex-col h-full min-w-0">
+      <Header @open-settings="showSettings = true" />
+
+      <main class="flex-1 overflow-y-auto p-4 md:p-6 bg-base-100">
         <router-view />
       </main>
+    </div>
+
+    <div class="drawer-side z-50">
+      <label for="main-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
+      <Sidebar @open-settings="showSettings = true" @close-drawer="drawerOpen = false" />
     </div>
 
     <SettingsModal :show="showSettings" @close="showSettings = false" />

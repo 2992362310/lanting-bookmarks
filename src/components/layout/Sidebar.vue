@@ -3,7 +3,10 @@ import { ref, nextTick, computed, onBeforeUnmount, watch } from "vue";
 import logo from "@/assets/logo.svg";
 import { useBookmarkStore } from "@/stores/bookmarks";
 import ConfirmModal from "@/components/common/ConfirmModal.vue";
-const emit = defineEmits<{ (e: "open-settings"): void }>();
+const emit = defineEmits<{
+  (e: "open-settings"): void;
+  (e: "close-drawer"): void;
+}>();
 
 const store = useBookmarkStore();
 const localWidth = ref(store.sidebarWidth); // Local state for smooth dragging
@@ -107,6 +110,7 @@ const handleFolderClick = (id: string, event: MouseEvent) => {
       store.setFolderFilter(id);
     }
   }
+  emit("close-drawer");
 };
 
 // Counts
@@ -162,10 +166,10 @@ onBeforeUnmount(() => {
 
 <template>
   <aside
-    class="bg-base-200/50 h-full flex flex-col border-r border-base-300 backdrop-blur-sm relative shrink-0"
+    class="bg-base-200/50 h-full flex flex-col border-r border-base-300 backdrop-blur-sm relative shrink-0 !w-72 lg:w-auto"
     :style="{ width: localWidth + 'px' }"
   >
-    <router-link to="/" class="p-4 flex items-center gap-2">
+    <router-link to="/" class="p-4 flex items-center gap-2" @click="emit('close-drawer')">
       <div class="avatar">
         <div class="w-8 rounded-xl bg-base-100 p-1 shadow-sm">
           <img :src="logo" alt="兰亭书签" class="w-full h-full" />
@@ -183,7 +187,10 @@ onBeforeUnmount(() => {
             :class="{
               'btn-active btn-primary/20 text-primary': store.selectedFolderIds.length === 0,
             }"
-            @click="store.setFolderFilter(null)"
+            @click="
+              store.setFolderFilter(null);
+              emit('close-drawer');
+            "
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -442,7 +449,7 @@ onBeforeUnmount(() => {
     </div>
 
     <div
-      class="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-base-300/40"
+      class="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-base-300/40 hidden lg:block"
       @mousedown.prevent="startResize"
     ></div>
   </aside>
