@@ -78,7 +78,7 @@ const startEditingFolder = (id: string, name: string) => {
 const confirmEditFolder = async (id: string) => {
   if (
     editingFolderName.value.trim() &&
-    editingFolderName.value.trim() !== store.folders.find((f) => f.id === id)?.name
+    editingFolderName.value.trim() !== store.folders.find((f: { id: string }) => f.id === id)?.name
   ) {
     await store.updateFolder(id, editingFolderName.value.trim());
   }

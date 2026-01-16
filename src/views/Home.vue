@@ -52,7 +52,7 @@ const selectedTitle = computed(() => {
     const id = ids[0];
     if (id === "uncategorized") return "未分类";
     if (id === "trash") return "回收站";
-    return store.folders.find((f) => f.id === id)?.name || "分类";
+    return store.folders.find((f: { id: string }) => f.id === id)?.name || "分类";
   }
   return "已选择分类";
 });
