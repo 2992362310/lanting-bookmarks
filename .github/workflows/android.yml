@@ -48,6 +48,12 @@ jobs:
       - name: Install project dependencies
         run: pnpm install
 
+      - name: Re-initialize Android Project
+        # 强制清除旧的 Android 生成文件并重新初始化，以解决包名不匹配问题
+        run: |
+          rm -rf src-tauri/gen/android
+          pnpm tauri android init
+
       - name: Build Android APK (Debug)
         # 构建 Debug 包 (会自动使用 debug 密钥签名，可直接安装)
         # 指定生成 APK，并构建通用架构或指定架构
