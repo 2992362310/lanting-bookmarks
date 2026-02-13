@@ -26,12 +26,18 @@ importers:
       pinia:
         specifier: ^3.0.4
         version: 3.0.4(typescript@5.6.3)(vue@3.5.22(typescript@5.6.3))
+      sortablejs:
+        specifier: ^1.15.2
+        version: 1.15.7
       vue:
         specifier: ^3.5.13
         version: 3.5.22(typescript@5.6.3)
       vue-router:
         specifier: '4'
         version: 4.6.4(vue@3.5.22(typescript@5.6.3))
+      vuedraggable:
+        specifier: ^4.1.0
+        version: 4.1.0(vue@3.5.22(typescript@5.6.3))
     devDependencies:
       '@tailwindcss/postcss':
         specifier: ^4.1.17
@@ -976,6 +982,12 @@ packages:
     engines: {node: '>=18.0.0', npm: '>=8.0.0'}
     hasBin: true
 
+  sortablejs@1.14.0:
+    resolution: {integrity: sha512-pBXvQCs5/33fdN1/39pPL0NZF20LeRbLQ5jtnheIPN9JQAaufGjKdWduZn4U7wCtVuzKhmRkI0DFYHYRbB2H1w==}
+
+  sortablejs@1.15.7:
+    resolution: {integrity: sha512-Kk8wLQPlS+yi1ZEf48a4+fzHa4yxjC30M/Sr2AnQu+f/MPwvvX9XjZ6OWejiz8crBsLwSq8GHqaxaET7u6ux0A==}
+
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
@@ -1074,6 +1086,11 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+
+  vuedraggable@4.1.0:
+    resolution: {integrity: sha512-FU5HCWBmsf20GpP3eudURW3WdWTKIbEIQxh9/8GE806hydR9qZqRRxRE3RjqX7PkuLuMQG/A7n3cfj9rCEchww==}
+    peerDependencies:
+      vue: ^3.0.1
 
 snapshots:
 
@@ -1797,6 +1814,10 @@ snapshots:
       '@rollup/rollup-win32-x64-msvc': 4.52.4
       fsevents: 2.3.3
 
+  sortablejs@1.14.0: {}
+
+  sortablejs@1.15.7: {}
+
   source-map-js@1.2.1: {}
 
   speakingurl@14.0.1: {}
@@ -1859,3 +1880,8 @@ snapshots:
       '@vue/shared': 3.5.22
     optionalDependencies:
       typescript: 5.6.3
+
+  vuedraggable@4.1.0(vue@3.5.22(typescript@5.6.3)):
+    dependencies:
+      sortablejs: 1.14.0
+      vue: 3.5.22(typescript@5.6.3)

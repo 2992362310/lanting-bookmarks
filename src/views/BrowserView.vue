@@ -1,16 +1,28 @@
 <script setup lang="ts">
 // Browser View Component
 import { useRoute, useRouter } from "vue-router";
-import { ref, onMounted, onBeforeUnmount, computed } from "vue";
+import {
+  ref,
+  onBeforeUnmount,
+  computed,
+  onActivated,
+  onDeactivated,
+  watch,
+} from "vue";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useBookmarkStore } from "@/stores/bookmarks";
 
 const route = useRoute();
 const router = useRouter();
-const url = ref((route.query.url as string) || "");
+const url = ref("");
 const isLoading = ref(true);
 
 const store = useBookmarkStore();
+
+const routeTabId = computed(() => {
+  const t = route.query.tab;
+  return typeof t === "string" && t.trim() ? t.trim() : null;
+});
 
 // Auto-hide toolbar
 const showToolbar = ref(true);
@@ -27,6 +39,15 @@ const interactHideMs = computed(() => {
   if (autoHideMs.value === 0) return 0;
   return Math.min(5000, autoHideMs.value + 500);
 });
+
+const tabTitle = (tabUrl: string, title?: string) => {
+  if (typeof title === "string" && title.trim()) return title.trim();
+  try {
+    return new URL(tabUrl).hostname || tabUrl;
+  } catch {
+    return tabUrl;
+  }
+};
 
 const hotzoneRevealDelayMs = computed(() => {
   const v = store.browserToolbarHotzoneRevealDelayMs;
@@ -70,6 +91,29 @@ const goHome = () => {
   router.push({ name: "Home" });
 };
 
+const switchTab = (id: string) => {
+  if (!id || id === routeTabId.value) return;
+  store.activateBrowserTab(id);
+  router.push({ path: "/browser", query: { tab: id } });
+};
+
+const closeTab = (id: string) => {
+  if (!id) return;
+  if (typeof store.closeBrowserTab !== "function") return;
+  if (store.browserTabs.length <= 1) return;
+
+  const wasActive = id === routeTabId.value;
+  store.closeBrowserTab(id);
+
+  if (!wasActive) return;
+  const nextId = store.activeBrowserTabId;
+  if (nextId) {
+    router.replace({ path: "/browser", query: { tab: nextId } });
+  } else {
+    goHome();
+  }
+};
+
 const openExternal = async () => {
   try {
     await openUrl(url.value);
@@ -82,16 +126,71 @@ const handleLoad = () => {
   isLoading.value = false;
 };
 
-onMounted(() => {
+const attachListeners = () => {
+  window.addEventListener("keydown", onKeyDown);
+};
+
+const detachListeners = () => {
+  window.removeEventListener("keydown", onKeyDown);
+};
+
+watch(
+  [() => route.query.url, () => route.query.title, routeTabId],
+  ([nextUrlRaw, nextTitleRaw, nextTabId]) => {
+    // Preferred: tab id drives the current page.
+    if (nextTabId) {
+      const tab = store.browserTabs.find((t) => t.id === nextTabId) ?? null;
+      if (tab) {
+        if (tab.url !== url.value) {
+          url.value = tab.url;
+          isLoading.value = true;
+          revealToolbar(interactHideMs.value);
+        }
+        store.activateBrowserTab(tab.id);
+      }
+      return;
+    }
+
+    // Backward compatibility: /browser?url=... creates/activates a tab.
+    const legacyUrl = typeof nextUrlRaw === "string" ? nextUrlRaw.trim() : "";
+    const legacyTitle = typeof nextTitleRaw === "string" ? nextTitleRaw.trim() : undefined;
+    if (!legacyUrl) return;
+    if (typeof store.createOrActivateBrowserTab !== "function") {
+      if (legacyUrl !== url.value) {
+        url.value = legacyUrl;
+        isLoading.value = true;
+        revealToolbar(interactHideMs.value);
+      }
+      return;
+    }
+    const tabId = store.createOrActivateBrowserTab(legacyUrl, legacyTitle);
+    if (!tabId) return;
+    router.replace({ path: "/browser", query: { tab: tabId } });
+  },
+  { immediate: true },
+);
+
+onActivated(() => {
+  attachListeners();
   // Give the user a moment to orient, then auto-hide.
   scheduleHide(autoHideMs.value);
-  window.addEventListener("keydown", onKeyDown);
+  if (routeTabId.value) {
+    store.activateBrowserTab(routeTabId.value);
+  }
+});
+
+onDeactivated(() => {
+  detachListeners();
+  if (hideTimer) window.clearTimeout(hideTimer);
+  if (hotzoneRevealTimer) window.clearTimeout(hotzoneRevealTimer);
+  hideTimer = null;
+  hotzoneRevealTimer = null;
 });
 
 onBeforeUnmount(() => {
   if (hideTimer) window.clearTimeout(hideTimer);
   if (hotzoneRevealTimer) window.clearTimeout(hotzoneRevealTimer);
-  window.removeEventListener("keydown", onKeyDown);
+  detachListeners();
 });
 </script>
 
@@ -129,6 +228,39 @@ onBeforeUnmount(() => {
           </svg>
           返回主页
         </button>
+
+        <div class="tabs tabs-boxed tabs-sm shrink-0 overflow-x-auto max-w-[50vw]">
+          <div
+            v-for="t in store.browserTabs"
+            :key="t.id"
+            class="tab max-w-52"
+            :class="{ 'tab-active': t.id === routeTabId }"
+            :title="t.url"
+            role="tab"
+            tabindex="0"
+            @click="switchTab(t.id)"
+          >
+            <span class="truncate">{{ tabTitle(t.url, t.title) }}</span>
+            <button
+              v-if="store.browserTabs.length > 1"
+              type="button"
+              class="btn btn-ghost btn-xs ml-1 px-1"
+              title="关闭"
+              aria-label="关闭标签页"
+              @click.stop="closeTab(t.id)"
+            >
+              ✕
+            </button>
+          </div>
+
+          <a
+            v-if="store.browserTabs.length === 0"
+            class="tab tab-active max-w-40 truncate"
+            title="空白页"
+          >
+            空白页
+          </a>
+        </div>
 
         <div class="flex-1 flex items-center bg-base-200 rounded-md px-3 py-1.5 mx-2">
           <svg

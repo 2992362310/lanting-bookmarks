@@ -12,6 +12,9 @@ const routes = [
     path: "/browser",
     name: "Browser",
     component: BrowserView,
+    meta: {
+      keepAlive: true,
+    },
   },
 ];
 

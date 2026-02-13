@@ -1,4 +1,4 @@
-import { defineStore } from "pinia";
+import { defineStore, acceptHMRUpdate } from "pinia";
 import { ref, computed, watch } from "vue";
 import { Store, load } from "@tauri-apps/plugin-store";
 
@@ -20,6 +20,14 @@ export interface Folder {
   name: string;
 }
 
+export interface BrowserTab {
+  id: string;
+  url: string;
+  title?: string;
+  createdAt: number;
+  lastActiveAt: number;
+}
+
 export const useBookmarkStore = defineStore("bookmarks", () => {
   const bookmarks = ref<Bookmark[]>([]);
   const folders = ref<Folder[]>([
@@ -34,6 +42,10 @@ export const useBookmarkStore = defineStore("bookmarks", () => {
   const theme = ref<"system" | string>("system");
   const browserToolbarAutoHideMs = ref(800);
   const browserToolbarHotzoneRevealDelayMs = ref(220);
+
+  // Browser tabs (in-memory)
+  const browserTabs = ref<BrowserTab[]>([]);
+  const activeBrowserTabId = ref<string | null>(null);
 
   let store: Store | null = null;
   const STORE_PATH = "bookmarks.json";
@@ -137,6 +149,55 @@ export const useBookmarkStore = defineStore("bookmarks", () => {
   };
   const saveNow = async () => {
     await save();
+  };
+
+  const activateBrowserTab = (id: string) => {
+    const tab = browserTabs.value.find((t) => t.id === id);
+    if (!tab) return;
+    tab.lastActiveAt = Date.now();
+    activeBrowserTabId.value = id;
+  };
+
+  const createOrActivateBrowserTab = (tabUrl: string, tabTitle?: string) => {
+    const url = String(tabUrl || "").trim();
+    if (!url) return null;
+
+    const existing = browserTabs.value.find((t) => t.url === url);
+    if (existing) {
+      if (typeof tabTitle === "string" && tabTitle.trim()) {
+        existing.title = tabTitle.trim();
+      }
+      activateBrowserTab(existing.id);
+      return existing.id;
+    }
+
+    const now = Date.now();
+    const newTab: BrowserTab = {
+      id: crypto.randomUUID(),
+      url,
+      title: typeof tabTitle === "string" ? tabTitle.trim() || undefined : undefined,
+      createdAt: now,
+      lastActiveAt: now,
+    };
+    browserTabs.value.push(newTab);
+    activeBrowserTabId.value = newTab.id;
+    return newTab.id;
+  };
+
+  const closeBrowserTab = (id: string) => {
+    if (browserTabs.value.length <= 1) return;
+    const idx = browserTabs.value.findIndex((t) => t.id === id);
+    if (idx < 0) return;
+
+    browserTabs.value.splice(idx, 1);
+
+    if (activeBrowserTabId.value !== id) return;
+
+    const next = browserTabs.value[Math.min(idx, browserTabs.value.length - 1)] ?? null;
+    activeBrowserTabId.value = next?.id ?? null;
+    if (next) {
+      next.lastActiveAt = Date.now();
+    }
   };
 
   // Persist UI state (declared after refs to avoid TDZ)
@@ -302,11 +363,13 @@ export const useBookmarkStore = defineStore("bookmarks", () => {
 
   // --- Folder Actions ---
   const addFolder = async (name: string) => {
+    const id = crypto.randomUUID();
     folders.value.push({
-      id: crypto.randomUUID(),
+      id,
       name,
     });
     await save();
+    return id;
   };
   const setViewMode = async (mode: "grid" | "list") => {
     viewMode.value = mode;
@@ -356,6 +419,38 @@ export const useBookmarkStore = defineStore("bookmarks", () => {
 
   // --- Bookmark Actions ---
 
+  const reorderBookmarks = async (visibleOrderedIds: string[]) => {
+    if (!Array.isArray(visibleOrderedIds) || visibleOrderedIds.length === 0) return;
+
+    const idSet = new Set(visibleOrderedIds);
+
+    const currentSubsetIds = bookmarks.value.filter((b) => idSet.has(b.id)).map((b) => b.id);
+    if (
+      currentSubsetIds.length === visibleOrderedIds.length &&
+      currentSubsetIds.every((id, idx) => id === visibleOrderedIds[idx])
+    ) {
+      return;
+    }
+
+    const bookmarkMap = new Map(bookmarks.value.map((b) => [b.id, b] as const));
+
+    const queue = visibleOrderedIds
+      .map((id) => bookmarkMap.get(id))
+      .filter((b): b is Bookmark => b !== undefined);
+
+    if (queue.length <= 1) return;
+
+    let queueIndex = 0;
+    bookmarks.value = bookmarks.value.map((b) => {
+      if (!idSet.has(b.id)) return b;
+      const next = queue[queueIndex];
+      queueIndex += 1;
+      return next ?? b;
+    });
+
+    await save();
+  };
+
   const updateBookmark = async (id: string, updates: Partial<Bookmark>) => {
     const index = bookmarks.value.findIndex((b) => b.id === id);
     if (index !== -1) {
@@ -382,6 +477,7 @@ export const useBookmarkStore = defineStore("bookmarks", () => {
     removeBookmarkPermanent,
     restoreBookmark,
     emptyTrash,
+    reorderBookmarks,
     updateBookmark,
     saveNow,
     setViewMode,
@@ -392,6 +488,11 @@ export const useBookmarkStore = defineStore("bookmarks", () => {
     theme,
     browserToolbarAutoHideMs,
     browserToolbarHotzoneRevealDelayMs,
+    browserTabs,
+    activeBrowserTabId,
+    activateBrowserTab,
+    createOrActivateBrowserTab,
+    closeBrowserTab,
     addFolder,
     removeFolder,
     updateFolder,
@@ -399,3 +500,7 @@ export const useBookmarkStore = defineStore("bookmarks", () => {
     viewMode,
   };
 });
+
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(useBookmarkStore, import.meta.hot));
+}

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, watch } from "vue";
+import { ref, reactive, watch, nextTick } from "vue";
 import { useBookmarkStore, type Bookmark } from "@/stores/bookmarks";
 
 const props = defineProps<{
@@ -14,9 +14,11 @@ const emit = defineEmits<{
 
 const store = useBookmarkStore();
 const isLoading = ref(false);
-const tagInput = ref("");
-const displayedTags = ref<string[]>([]);
 const showDetails = ref(false); // New: Toggle for extra fields
+
+const isCreatingFolder = ref(false);
+const newFolderName = ref("");
+const newFolderInput = ref<HTMLInputElement | null>(null);
 
 const form = reactive({
   id: "",
@@ -36,9 +38,8 @@ watch(
       form.url = newVal.url;
       form.title = newVal.title;
       form.description = newVal.description;
-      form.tags = newVal.tags.join(",");
+      form.tags = newVal.tags.join(", ");
       form.folderId = newVal.folderId || "";
-      displayedTags.value = newVal.tags;
 
       // Auto-expand if there is data in hidden fields
       if (form.tags || form.description) {
@@ -51,49 +52,36 @@ watch(
       form.description = "";
       form.tags = "";
       form.folderId = "";
-      displayedTags.value = [];
       showDetails.value = false;
     }
-    tagInput.value = "";
+    isCreatingFolder.value = false;
+    newFolderName.value = "";
   },
   { immediate: true },
 );
 
-const handleTagInputKeys = (e: KeyboardEvent) => {
-  if (["Enter", ","].includes(e.key)) {
-    e.preventDefault();
-    addTag();
-  } else if (e.key === "Backspace" && !tagInput.value && displayedTags.value.length > 0) {
-    displayedTags.value.pop();
-    updateFormTags();
+const startCreatingFolder = () => {
+  isCreatingFolder.value = true;
+  newFolderName.value = "";
+  nextTick(() => newFolderInput.value?.focus());
+};
+
+const cancelCreateFolder = () => {
+  isCreatingFolder.value = false;
+  newFolderName.value = "";
+};
+
+const confirmCreateFolder = async () => {
+  const name = newFolderName.value.trim();
+  if (!name) {
+    cancelCreateFolder();
+    return;
   }
-};
-
-const addTag = () => {
-  const val = tagInput.value.trim().replace(/,/g, "");
-  if (val && !displayedTags.value.includes(val)) {
-    displayedTags.value.push(val);
-    updateFormTags();
+  const id = await store.addFolder(name);
+  if (typeof id === "string" && id) {
+    form.folderId = id;
   }
-  tagInput.value = "";
-};
-
-const removeTag = (tag: string) => {
-  displayedTags.value = displayedTags.value.filter((t) => t !== tag);
-  updateFormTags();
-};
-
-const updateFormTags = () => {
-  form.tags = displayedTags.value.join(",");
-};
-
-const createFolder = async () => {
-  const name = prompt("输入新分类名称:");
-  if (name?.trim()) {
-    await store.addFolder(name.trim());
-    // Newly added folder will be available in store.folders
-    // We could try to auto-select it if store returns ID, but standard logic is fine.
-  }
+  cancelCreateFolder();
 };
 
 // Simple regex to extract domain for title if empty
@@ -200,7 +188,7 @@ const handleSubmit = async () => {
             <button
               type="button"
               class="btn btn-sm btn-neutral join-item"
-              @click="createFolder"
+              @click="startCreatingFolder"
               title="新建分类"
             >
               <svg
@@ -220,6 +208,27 @@ const handleSubmit = async () => {
             </button>
           </div>
         </fieldset>
+
+        <div v-if="isCreatingFolder" class="-mt-1">
+          <div class="join w-full">
+            <input
+              ref="newFolderInput"
+              v-model="newFolderName"
+              type="text"
+              class="input input-sm input-bordered join-item flex-1"
+              placeholder="输入新分类名称…"
+              @keydown.enter.prevent="confirmCreateFolder"
+              @keydown.esc.prevent="cancelCreateFolder"
+              @blur="confirmCreateFolder"
+            />
+            <button type="button" class="btn btn-sm btn-primary join-item" @click="confirmCreateFolder">
+              创建
+            </button>
+            <button type="button" class="btn btn-sm btn-ghost join-item" @click="cancelCreateFolder">
+              取消
+            </button>
+          </div>
+        </div>
 
         <!-- Toggle Advanced -->
         <div
@@ -253,39 +262,12 @@ const handleSubmit = async () => {
         >
           <fieldset class="fieldset">
             <legend class="fieldset-legend text-xs py-1">标签</legend>
-            <div
-              class="input input-sm input-bordered w-full h-auto min-h-[2rem] p-1 flex flex-wrap gap-1 items-center bg-base-100"
-            >
-              <span
-                v-for="tag in displayedTags"
-                :key="tag"
-                class="badge badge-xs badge-primary gap-1 py-2"
-              >
-                {{ tag }}
-                <svg
-                  @click="removeTag(tag)"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  class="inline-block w-3 h-3 stroke-current cursor-pointer hover:text-white/70"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  ></path>
-                </svg>
-              </span>
-              <input
-                type="text"
-                v-model="tagInput"
-                placeholder="输入标签按回车..."
-                class="bg-transparent border-none outline-none flex-1 min-w-[80px] h-5 text-xs p-0 focus:ring-0"
-                @keydown="handleTagInputKeys"
-                @blur="addTag"
-              />
-            </div>
+            <input
+              type="text"
+              v-model="form.tags"
+              placeholder="用逗号分隔，例如：工作, 设计, 待读"
+              class="input input-sm input-bordered w-full"
+            />
           </fieldset>
 
           <!-- Description Field (Hidden) -->

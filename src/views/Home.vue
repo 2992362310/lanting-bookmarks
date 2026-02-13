@@ -2,6 +2,7 @@
 import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useBookmarkStore, type Bookmark } from "@/stores/bookmarks";
+import Draggable from "vuedraggable";
 import AddBookmarkModal from "@/components/bookmarks/AddBookmarkModal.vue";
 import ConfirmModal from "@/components/common/ConfirmModal.vue";
 
@@ -11,6 +12,7 @@ const store = useBookmarkStore();
 // UI State
 const showEditModal = ref(false);
 const editingBookmark = ref<Bookmark | null>(null);
+const isDragging = ref(false);
 
 // Confirm Dialog State
 const showConfirm = ref(false);
@@ -45,6 +47,14 @@ const handleConfirmAction = async () => {
 // Use the pre-filtered bookmarks from the store
 const displayBookmarks = computed(() => store.filteredBookmarks);
 
+const draggableBookmarks = computed<Bookmark[]>({
+  get: () => displayBookmarks.value,
+  set: (nextList) => {
+    const nextIds = nextList.map((b) => b.id);
+    void store.reorderBookmarks(nextIds);
+  },
+});
+
 const selectedTitle = computed(() => {
   const ids = store.selectedFolderIds;
   if (ids.length === 0) return "全部书签";
@@ -58,14 +68,23 @@ const selectedTitle = computed(() => {
 });
 
 const openUrl = (bookmark: Bookmark) => {
+  if (isDragging.value) return;
   if (bookmark.deleted) return;
-  router.push({
-    path: "/browser",
-    query: {
-      url: bookmark.url,
-      title: bookmark.title,
-    },
-  });
+
+  if (typeof store.createOrActivateBrowserTab !== "function") {
+    router.push({
+      path: "/browser",
+      query: {
+        url: bookmark.url,
+        title: bookmark.title,
+      },
+    });
+    return;
+  }
+
+  const tabId = store.createOrActivateBrowserTab(bookmark.url, bookmark.title);
+  if (!tabId) return;
+  router.push({ path: "/browser", query: { tab: tabId } });
 };
 
 const handleEdit = (bookmark: Bookmark, event: Event) => {
@@ -91,11 +110,28 @@ const handleRestore = async (id: string, event: Event) => {
   await store.restoreBookmark(id);
 };
 
-// 已移除拖拽相关逻辑（不支持拖拽操作）
-
 const closeEditModal = () => {
   showEditModal.value = false;
   editingBookmark.value = null; // Clear data
+};
+
+const setGlobalUserSelect = (enabled: boolean) => {
+  const v = enabled ? "" : "none";
+  document.body.style.userSelect = v;
+  (document.body.style as unknown as { webkitUserSelect: string }).webkitUserSelect = v;
+};
+
+const onDragStart = () => {
+  isDragging.value = true;
+  setGlobalUserSelect(false);
+};
+
+const onDragEnd = () => {
+  // Prevent the drop mouseup from triggering a click-open
+  setTimeout(() => {
+    isDragging.value = false;
+    setGlobalUserSelect(true);
+  }, 0);
 };
 </script>
 
@@ -146,178 +182,89 @@ const closeEditModal = () => {
           </p>
         </div>
 
-        <!-- Grid View with Transition -->
-        <TransitionGroup
+        <!-- Draggable Grid/List -->
+        <Draggable
           v-else
-          name="list"
-          tag="div"
-          class="pb-10"
+          v-model="draggableBookmarks"
+          item-key="id"
+          class="pt-2 pb-10 select-none"
           :class="
             store.viewMode === 'grid'
               ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'
               : 'flex flex-col gap-2'
           "
+          :disabled="!store.isLoaded"
+          :animation="150"
+          :force-fallback="true"
+          :filter="'.no-drag'"
+          :prevent-on-filter="false"
+          @start="onDragStart"
+          @end="onDragEnd"
         >
-          <div
-            v-for="item in displayBookmarks"
-            :key="item.id"
-            class="shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer group relative"
-            :class="
-              store.viewMode === 'grid'
-                ? 'card bg-base-200 hover:-translate-y-1 hover:border-primary/20 pb-10 sm:pb-0 border border-transparent'
-                : 'bg-base-100 border border-base-200 rounded-lg hover:bg-base-200 p-2'
-            "
-            @click="openUrl(item)"
-          >
-            <!-- Grid Layout -->
-            <div v-if="store.viewMode === 'grid'" class="card-body p-4">
-              <div class="flex items-start justify-between gap-2">
-                <div class="flex items-center gap-3 overflow-hidden flex-1">
-                  <div class="avatar placeholder">
-                    <div
-                      class="w-10 h-10 rounded-xl bg-base-100 p-1 flex items-center justify-center overflow-hidden relative"
-                    >
-                      <img
-                        v-if="item.icon"
-                        :src="item.icon"
-                        :alt="item.title"
-                        class="w-full h-full object-contain"
-                        @error="item.icon = undefined"
-                      />
+          <template #item="{ element: item }">
+            <div
+              class="shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer group relative select-none"
+              :class="
+                store.viewMode === 'grid'
+                  ? 'card bg-base-200 hover:-translate-y-1 hover:border-primary/20 pb-10 sm:pb-0 border border-transparent'
+                  : 'bg-base-100 border border-base-200 rounded-lg hover:bg-base-200 p-2'
+              "
+              @click="openUrl(item)"
+            >
+              <!-- Grid Layout -->
+              <div v-if="store.viewMode === 'grid'" class="card-body p-4">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="flex items-center gap-3 overflow-hidden flex-1">
+                    <div class="avatar placeholder">
                       <div
-                        v-else
-                        class="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10 text-primary/40"
+                        class="w-10 h-10 rounded-xl bg-base-100 p-1 flex items-center justify-center overflow-hidden relative"
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          class="h-6 w-6"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
+                        <img
+                          v-if="item.icon"
+                          :src="item.icon"
+                          :alt="item.title"
+                          class="w-full h-full object-contain"
+                          @error="item.icon = undefined"
+                        />
+                        <div
+                          v-else
+                          class="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10 text-primary/40"
                         >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
-                          />
-                        </svg>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-6 w-6"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
+                            />
+                          </svg>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div class="flex flex-col overflow-hidden">
-                    <h3
-                      class="card-title text-base font-bold truncate block w-full"
-                      :title="item.title"
-                    >
-                      {{ item.title }}
-                    </h3>
-                    <span class="text-xs text-base-content/60 truncate w-full">{{ item.url }}</span>
+                    <div class="flex flex-col overflow-hidden">
+                      <h3 class="card-title text-base font-bold truncate block w-full" :title="item.title">
+                        {{ item.title }}
+                      </h3>
+                      <span class="text-xs text-base-content/60 truncate w-full">{{ item.url }}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <!-- Actions (Absolute positioning for better hit target) -->
-              <div
-                class="absolute top-2 right-2 flex gap-1 bg-base-200/80 rounded-lg p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-              >
-                <button
-                  v-if="!item.deleted"
-                  class="btn btn-ghost btn-xs btn-square"
-                  title="编辑"
-                  @click="handleEdit(item, $event)"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                    />
-                  </svg>
-                </button>
-                <button
-                  v-if="!item.deleted"
-                  class="btn btn-ghost btn-xs btn-square text-error"
-                  title="移入回收站"
-                  @click="handleDelete(item.id, $event)"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
-                </button>
-                <template v-else>
-                  <button
-                    class="btn btn-ghost btn-xs"
-                    title="恢复"
-                    @click="handleRestore(item.id, $event)"
-                  >
-                    恢复
-                  </button>
-                  <button
-                    class="btn btn-ghost btn-xs text-error"
-                    title="永久删除"
-                    @click="handlePermanentDelete(item.id, $event)"
-                  >
-                    永久删除
-                  </button>
-                </template>
-              </div>
-
-              <p class="text-sm text-base-content/70 mt-3 line-clamp-2 h-10">{{ item.description }}</p>
-
-              <div
-                class="card-actions justify-between items-center mt-3 pt-3 border-t border-base-content/10"
-              >
-                <div class="flex gap-1 overflow-hidden">
-                  <div
-                    v-for="tag in item.tags.slice(0, 2)"
-                    :key="tag"
-                    class="badge badge-sm badge-outline"
-                  >
-                    {{ tag }}
-                  </div>
-                  <div v-if="item.tags.length > 2" class="badge badge-sm badge-ghost">
-                    +{{ item.tags.length - 2 }}
-                  </div>
-                </div>
-                <span class="text-xs text-base-content/50">{{ item.date }}</span>
-              </div>
-            </div>
-
-            <!-- List Layout -->
-            <div v-else class="flex items-center gap-4 w-full px-2">
-              <div class="avatar placeholder flex-shrink-0">
+                <!-- Actions -->
                 <div
-                  class="w-8 h-8 rounded-md bg-base-200 p-1 flex items-center justify-center overflow-hidden relative"
+                  class="absolute top-2 right-2 flex gap-1 bg-base-200/80 rounded-lg p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10 no-drag"
                 >
-                  <img
-                    v-if="item.icon"
-                    :src="item.icon"
-                    :alt="item.title"
-                    class="w-full h-full object-contain"
-                    @error="item.icon = undefined"
-                  />
-                  <div
-                    v-else
-                    class="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10 text-primary/40"
+                  <button
+                    v-if="!item.deleted"
+                    class="btn btn-ghost btn-xs btn-square no-drag"
+                    title="编辑"
+                    @click="handleEdit(item, $event)"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -330,101 +277,173 @@ const closeEditModal = () => {
                         stroke-linecap="round"
                         stroke-linejoin="round"
                         stroke-width="2"
-                        d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
+                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
                       />
                     </svg>
+                  </button>
+                  <button
+                    v-if="!item.deleted"
+                    class="btn btn-ghost btn-xs btn-square text-error no-drag"
+                    title="移入回收站"
+                    @click="handleDelete(item.id, $event)"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                  </button>
+                  <template v-else>
+                    <button class="btn btn-ghost btn-xs no-drag" title="恢复" @click="handleRestore(item.id, $event)">
+                      恢复
+                    </button>
+                    <button
+                      class="btn btn-ghost btn-xs text-error no-drag"
+                      title="永久删除"
+                      @click="handlePermanentDelete(item.id, $event)"
+                    >
+                      永久删除
+                    </button>
+                  </template>
+                </div>
+
+                <p class="text-sm text-base-content/70 mt-3 line-clamp-2 h-10">{{ item.description }}</p>
+
+                <div class="card-actions justify-between items-center mt-3 pt-3 border-t border-base-content/10">
+                  <div class="flex gap-1 overflow-hidden">
+                    <div v-for="tag in item.tags.slice(0, 2)" :key="tag" class="badge badge-sm badge-outline">
+                      {{ tag }}
+                    </div>
+                    <div v-if="item.tags.length > 2" class="badge badge-sm badge-ghost">
+                      +{{ item.tags.length - 2 }}
+                    </div>
+                  </div>
+                  <span class="text-xs text-base-content/50">{{ item.date }}</span>
+                </div>
+              </div>
+
+              <!-- List Layout -->
+              <div v-else class="flex items-center gap-4 w-full px-2">
+                <div class="avatar placeholder flex-shrink-0">
+                  <div
+                    class="w-8 h-8 rounded-md bg-base-200 p-1 flex items-center justify-center overflow-hidden relative"
+                  >
+                    <img
+                      v-if="item.icon"
+                      :src="item.icon"
+                      :alt="item.title"
+                      class="w-full h-full object-contain"
+                      @error="item.icon = undefined"
+                    />
+                    <div
+                      v-else
+                      class="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-secondary/10 text-primary/40"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
+                        />
+                      </svg>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div class="flex flex-col flex-1 min-w-0">
-                <div class="flex items-center gap-2">
-                  <h3 class="font-bold truncate" :title="item.title">{{ item.title }}</h3>
-                  <span
-                    class="text-xs text-base-content/50 hidden sm:inline-block truncate max-w-[200px]"
-                    >{{ item.url }}</span
-                  >
+                <div class="flex flex-col flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <h3 class="font-bold truncate" :title="item.title">{{ item.title }}</h3>
+                    <span class="text-xs text-base-content/50 hidden sm:inline-block truncate max-w-[200px]">{{
+                      item.url
+                    }}</span>
+                  </div>
+                  <p v-if="item.description" class="text-xs text-base-content/70 truncate">
+                    {{ item.description }}
+                  </p>
                 </div>
-                <p v-if="item.description" class="text-xs text-base-content/70 truncate">
-                  {{ item.description }}
-                </p>
-              </div>
 
-              <div class="flex-none hidden md:flex gap-1">
-                <div
-                  v-for="tag in item.tags.slice(0, 3)"
-                  :key="tag"
-                  class="badge badge-xs badge-outline"
-                >
-                  {{ tag }}
+                <div class="flex-none hidden md:flex gap-1">
+                  <div v-for="tag in item.tags.slice(0, 3)" :key="tag" class="badge badge-xs badge-outline">
+                    {{ tag }}
+                  </div>
                 </div>
-              </div>
 
-              <div
-                class="flex-none flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <button
-                  v-if="!item.deleted"
-                  class="btn btn-ghost btn-xs btn-square"
-                  title="编辑"
-                  @click="handleEdit(item, $event)"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                    />
-                  </svg>
-                </button>
-                <button
-                  v-if="!item.deleted"
-                  class="btn btn-ghost btn-xs btn-square text-error"
-                  title="移入回收站"
-                  @click="handleDelete(item.id, $event)"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
-                </button>
-                <template v-else>
+                <div class="flex-none flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity no-drag">
                   <button
-                    class="btn btn-ghost btn-xs"
-                    title="恢复"
-                    @click="handleRestore(item.id, $event)"
+                    v-if="!item.deleted"
+                    class="btn btn-ghost btn-xs btn-square no-drag"
+                    title="编辑"
+                    @click="handleEdit(item, $event)"
                   >
-                    恢复
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                      />
+                    </svg>
                   </button>
                   <button
-                    class="btn btn-ghost btn-xs text-error"
-                    title="永久删除"
-                    @click="handlePermanentDelete(item.id, $event)"
+                    v-if="!item.deleted"
+                    class="btn btn-ghost btn-xs btn-square text-error no-drag"
+                    title="移入回收站"
+                    @click="handleDelete(item.id, $event)"
                   >
-                    永久删除
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
                   </button>
-                </template>
+                  <template v-else>
+                    <button class="btn btn-ghost btn-xs no-drag" title="恢复" @click="handleRestore(item.id, $event)">
+                      恢复
+                    </button>
+                    <button
+                      class="btn btn-ghost btn-xs text-error no-drag"
+                      title="永久删除"
+                      @click="handlePermanentDelete(item.id, $event)"
+                    >
+                      永久删除
+                    </button>
+                  </template>
+                </div>
               </div>
             </div>
-          </div>
-        </TransitionGroup>
+          </template>
+        </Draggable>
 
         <AddBookmarkModal
           v-if="showEditModal"

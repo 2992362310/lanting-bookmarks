@@ -12,28 +12,43 @@ const drawerOpen = ref(false);
 </script>
 
 <template>
-  <div v-if="isFullScreen" class="h-screen w-full bg-base-100 text-base-content overflow-hidden">
-    <router-view />
-    <SettingsModal :show="showSettings" @close="showSettings = false" />
-  </div>
+  <div class="h-screen w-full bg-base-100 text-base-content overflow-hidden">
+    <div
+      :class="[
+        isFullScreen ? '' : 'drawer lg:drawer-open',
+        'h-full w-full overflow-hidden',
+      ]"
+    >
+      <input
+        v-if="!isFullScreen"
+        id="main-drawer"
+        type="checkbox"
+        class="drawer-toggle"
+        v-model="drawerOpen"
+      />
 
-  <div
-    v-else
-    class="drawer lg:drawer-open h-screen w-full bg-base-100 text-base-content overflow-hidden"
-  >
-    <input id="main-drawer" type="checkbox" class="drawer-toggle" v-model="drawerOpen" />
+      <div
+        :class="[
+          isFullScreen ? '' : 'drawer-content',
+          'flex flex-col h-full min-w-0 overflow-hidden',
+        ]"
+      >
+        <Header v-if="!isFullScreen" @open-settings="showSettings = true" />
 
-    <div class="drawer-content flex flex-col h-full min-w-0 overflow-hidden">
-      <Header @open-settings="showSettings = true" />
+        <main class="flex-1 overflow-hidden relative flex flex-col bg-base-100">
+          <router-view v-slot="{ Component, route: r }">
+            <KeepAlive v-if="r.meta?.keepAlive">
+              <component :is="Component" :key="r.fullPath" />
+            </KeepAlive>
+            <component :is="Component" v-else :key="r.fullPath" />
+          </router-view>
+        </main>
+      </div>
 
-      <main class="flex-1 overflow-hidden relative flex flex-col bg-base-100">
-        <router-view />
-      </main>
-    </div>
-
-    <div class="drawer-side z-50 overflow-hidden">
-      <label for="main-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
-      <Sidebar @open-settings="showSettings = true" @close-drawer="drawerOpen = false" />
+      <div v-if="!isFullScreen" class="drawer-side z-50 overflow-hidden">
+        <label for="main-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
+        <Sidebar @open-settings="showSettings = true" @close-drawer="drawerOpen = false" />
+      </div>
     </div>
 
     <SettingsModal :show="showSettings" @close="showSettings = false" />
