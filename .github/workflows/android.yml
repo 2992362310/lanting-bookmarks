@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   build-android:
-    name: Build Android (Debug APK arm64)
+    name: Build Android (Release APK arm64)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -108,9 +108,30 @@ jobs:
           rm -rf src-tauri/gen/android
           pnpm tauri android init --ci --skip-targets-install
 
-      - name: Build Android (Debug APK)
+      - name: Configure release signing (use debug keystore)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          gradle_file = Path('src-tauri/gen/android/app/build.gradle.kts')
+          text = gradle_file.read_text(encoding='utf-8')
+          marker = 'signingConfig = signingConfigs.getByName("debug")'
+
+          if marker not in text:
+              needle = 'getByName("release") {'
+              if needle not in text:
+                  raise SystemExit('Could not find release buildType block to patch signingConfig')
+              text = text.replace(needle, needle + '\n            ' + marker)
+              gradle_file.write_text(text, encoding='utf-8')
+              print('Patched release signingConfig to use debug keystore')
+          else:
+              print('Release signingConfig already patched')
+          PY
+
+      - name: Build Android (Release APK)
         # Build only arm64 to keep the APK size smaller.
-        run: pnpm tauri android build --ci --debug --apk true --aab false --target aarch64
+        run: pnpm tauri android build --ci --apk true --aab false --target aarch64
 
       - name: Prepare APK artifact (fixed filename)
         shell: bash
@@ -123,10 +144,10 @@ jobs:
             exit 1
           fi
 
-          # Prefer a debug APK if multiple are present.
+          # Prefer a release APK if multiple are present.
           selected=""
           for f in "${apks[@]}"; do
-            if [[ "${f,,}" == *"debug"* ]]; then
+            if [[ "${f,,}" == *"release"* ]]; then
               selected="$f"
               break
             fi
@@ -135,13 +156,13 @@ jobs:
             selected="${apks[0]}"
           fi
 
-          cp -f "$selected" "release/android-debug-arm64.apk"
-          echo "Prepared: release/android-debug-arm64.apk (from $selected)"
+          cp -f "$selected" "release/android-release-arm64.apk"
+          echo "Prepared: release/android-release-arm64.apk (from $selected)"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: android-debug-arm64
+          name: android-release-arm64
           path: |
-            release/android-debug-arm64.apk
+            release/android-release-arm64.apk
           if-no-files-found: error
