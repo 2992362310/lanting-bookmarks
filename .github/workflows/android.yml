@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   build-android:
-    name: Build Android (APK/AAB)
+    name: Build Android (Debug APK arm64)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -59,7 +59,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+          targets: aarch64-linux-android
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -109,12 +109,39 @@ jobs:
           pnpm tauri android init --ci --skip-targets-install
 
       - name: Build Android (Debug APK)
-        run: pnpm tauri android build --ci --debug --apk true --aab false
+        # Build only arm64 to keep the APK size smaller.
+        run: pnpm tauri android build --ci --debug --apk true --aab false --target aarch64
 
-      - name: Upload APK artifacts
+      - name: Prepare APK artifact (fixed filename)
+        shell: bash
+        run: |
+          mkdir -p release
+          shopt -s nullglob globstar
+          apks=(src-tauri/gen/android/app/build/outputs/apk/**/*.apk)
+          if [ ${#apks[@]} -eq 0 ]; then
+            echo "No APK found under outputs/apk" >&2
+            exit 1
+          fi
+
+          # Prefer a debug APK if multiple are present.
+          selected=""
+          for f in "${apks[@]}"; do
+            if [[ "${f,,}" == *"debug"* ]]; then
+              selected="$f"
+              break
+            fi
+          done
+          if [ -z "$selected" ]; then
+            selected="${apks[0]}"
+          fi
+
+          cp -f "$selected" "release/android-debug-arm64.apk"
+          echo "Prepared: release/android-debug-arm64.apk (from $selected)"
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: android-debug
+          name: android-debug-arm64
           path: |
-            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            release/android-debug-arm64.apk
           if-no-files-found: error
