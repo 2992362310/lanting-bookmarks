@@ -166,7 +166,7 @@ onBeforeUnmount(() => {
 
 <template>
   <aside
-    class="bg-base-200/50 h-full flex flex-col border-r border-base-300 backdrop-blur-sm relative shrink-0 !w-72 lg:w-auto"
+    class="bg-base-200 h-full flex flex-col border-r border-base-300 relative shrink-0 !w-72 lg:w-auto"
     :style="{ width: localWidth + 'px' }"
   >
     <router-link to="/" class="p-4 flex items-center gap-2" @click="emit('close-drawer')">
@@ -367,7 +367,7 @@ onBeforeUnmount(() => {
               }}</span>
             </div>
             <div
-              class="absolute right-1 top-1/2 -translate-y-1/2 flex gap-1 hidden group-hover:flex bg-base-100/50 backdrop-blur rounded p-0.5 shadow-sm"
+              class="absolute right-1 top-1/2 -translate-y-1/2 flex gap-1 hidden group-hover:flex bg-base-100 rounded p-0.5 shadow-sm"
             >
               <span
                 class="p-0.5 hover:text-primary cursor-pointer"

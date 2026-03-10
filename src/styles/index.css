@@ -9,6 +9,7 @@ body {
 body {
   margin: 0;
   overflow: hidden;
+  background-color: oklch(var(--b1) / 1);
   font-family:
     ui-sans-serif,
     system-ui,
@@ -40,8 +41,9 @@ textarea {
 }
 
 #app {
-  height: 100vh;
-  height: 100dvh;
+  height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
   width: 100vw;
 }
 

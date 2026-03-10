@@ -27,7 +27,7 @@ const handleCancel = () => {
 
 <template>
   <dialog class="modal" :class="{ 'modal-open': show }">
-    <div class="modal-box">
+    <div class="modal-box bg-base-100">
       <h3 class="font-bold text-lg" :class="{ 'text-error': type === 'error' }">
         {{ title || "确认操作" }}
       </h3>

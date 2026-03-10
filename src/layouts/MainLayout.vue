@@ -13,7 +13,7 @@ const drawerOpen = ref(false);
 
 <template>
   <div
-    class="h-full w-full bg-base-100 text-base-content overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+    class="h-full w-full bg-base-100 text-base-content overflow-hidden box-border pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
   >
     <div
       :class="[

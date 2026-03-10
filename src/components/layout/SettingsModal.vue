@@ -86,8 +86,8 @@ const importSampleData = async () => {
 
 <template>
   <dialog :open="props.show" class="modal">
-    <div class="modal-box max-w-2xl p-0 overflow-hidden">
-      <div class="px-5 pt-5 pb-3 bg-base-200/40 border-b border-base-300">
+    <div class="modal-box max-w-2xl p-0 overflow-hidden bg-base-100">
+      <div class="px-5 pt-5 pb-3 bg-base-200 border-b border-base-300">
         <div class="flex items-start justify-between gap-4">
           <div class="min-w-0">
             <h3 class="font-bold text-lg tracking-tight">设置</h3>
