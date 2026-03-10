@@ -4,12 +4,13 @@
 html,
 body {
   height: 100%;
+  background-color: var(--color-base-100);
 }
 
 body {
   margin: 0;
   overflow: hidden;
-  background-color: oklch(var(--b1) / 1);
+  background-color: var(--color-base-100);
   font-family:
     ui-sans-serif,
     system-ui,
@@ -41,10 +42,55 @@ textarea {
 }
 
 #app {
-  height: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
   width: 100vw;
+  background-color: var(--color-base-100);
+}
+
+/* Compatibility for older Android WebView/Safari that may lack modern CSS features.
+   - OKLCH: DaisyUI v5 stores colors as OKLCH in CSS variables; without OKLCH support,
+     those variables become invalid and backgrounds appear transparent.
+   - DVH: DaisyUI uses 100dvh for drawer height; without DVH support, layout may not fill.
+*/
+@supports not (color: oklch(0% 0 0)) {
+  :root,
+  [data-theme] {
+    /* Light fallback */
+    color-scheme: light;
+    --color-base-100: #ffffff;
+    --color-base-200: #f3f4f6;
+    --color-base-300: #e5e7eb;
+    --color-base-content: #111827;
+    --color-primary: #2563eb;
+    --color-primary-content: #ffffff;
+    --color-neutral: #111827;
+    --color-neutral-content: #ffffff;
+  }
+
+  /* Dark fallback for themes that are dark by design */
+  [data-theme="dark"],
+  [data-theme="business"] {
+    color-scheme: dark;
+    --color-base-100: #111827;
+    --color-base-200: #0b1220;
+    --color-base-300: #0a0f1a;
+    --color-base-content: #e5e7eb;
+    --color-primary: #60a5fa;
+    --color-primary-content: #0b1220;
+    --color-neutral: #e5e7eb;
+    --color-neutral-content: #0b1220;
+  }
+}
+
+@supports not (height: 100dvh) {
+  #app {
+    height: 100vh;
+  }
+
+  .drawer-side {
+    height: 100vh;
+  }
 }
 
 /* Animations using Vue transitions */
