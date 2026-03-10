@@ -126,6 +126,71 @@ const handleLoad = () => {
   isLoading.value = false;
 };
 
+// Keep screen awake while browsing (useful for music/video playback in embedded pages).
+// Wake Lock requires a user gesture on many platforms, so we request on interaction.
+let wakeLockSentinel: any = null;
+let wakeLockEnabled = false;
+
+const canUseWakeLock = () => {
+  return (
+    typeof navigator !== "undefined" &&
+    "wakeLock" in navigator &&
+    typeof (navigator as any).wakeLock?.request === "function"
+  );
+};
+
+const requestWakeLock = async () => {
+  if (!wakeLockEnabled) return false;
+  if (!canUseWakeLock()) return false;
+  if (document.visibilityState !== "visible") return false;
+  if (wakeLockSentinel) return true;
+  try {
+    wakeLockSentinel = await (navigator as any).wakeLock.request("screen");
+    wakeLockSentinel?.addEventListener?.("release", () => {
+      wakeLockSentinel = null;
+    });
+    return true;
+  } catch {
+    wakeLockSentinel = null;
+    return false;
+  }
+};
+
+const releaseWakeLock = async () => {
+  try {
+    await wakeLockSentinel?.release?.();
+  } catch {
+    // ignore
+  } finally {
+    wakeLockSentinel = null;
+  }
+};
+
+const onVisibilityChange = () => {
+  if (!wakeLockEnabled) return;
+  if (document.visibilityState === "visible") {
+    void requestWakeLock();
+  } else {
+    void releaseWakeLock();
+  }
+};
+
+const onUserActivation = () => {
+  void requestWakeLock();
+};
+
+const attachWakeLockListeners = () => {
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  window.addEventListener("pointerdown", onUserActivation, { passive: true });
+  window.addEventListener("keydown", onUserActivation);
+};
+
+const detachWakeLockListeners = () => {
+  document.removeEventListener("visibilitychange", onVisibilityChange);
+  window.removeEventListener("pointerdown", onUserActivation as any);
+  window.removeEventListener("keydown", onUserActivation);
+};
+
 const attachListeners = () => {
   window.addEventListener("keydown", onKeyDown);
 };
@@ -172,6 +237,10 @@ watch(
 
 onActivated(() => {
   attachListeners();
+  wakeLockEnabled = true;
+  attachWakeLockListeners();
+  // Try immediately (may fail until user gesture, then pointerdown/keydown retries).
+  void requestWakeLock();
   // Give the user a moment to orient, then auto-hide.
   scheduleHide(autoHideMs.value);
   if (routeTabId.value) {
@@ -181,6 +250,9 @@ onActivated(() => {
 
 onDeactivated(() => {
   detachListeners();
+  wakeLockEnabled = false;
+  detachWakeLockListeners();
+  void releaseWakeLock();
   if (hideTimer) window.clearTimeout(hideTimer);
   if (hotzoneRevealTimer) window.clearTimeout(hotzoneRevealTimer);
   hideTimer = null;
@@ -191,6 +263,9 @@ onBeforeUnmount(() => {
   if (hideTimer) window.clearTimeout(hideTimer);
   if (hotzoneRevealTimer) window.clearTimeout(hotzoneRevealTimer);
   detachListeners();
+  wakeLockEnabled = false;
+  detachWakeLockListeners();
+  void releaseWakeLock();
 });
 </script>
 

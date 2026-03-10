@@ -1,6 +1,11 @@
 @import "./daisyui.css";
 @import "./custom.css";
 
+html,
+body {
+  height: 100%;
+}
+
 body {
   margin: 0;
   overflow: hidden;
@@ -36,6 +41,7 @@ textarea {
 
 #app {
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
 }
 

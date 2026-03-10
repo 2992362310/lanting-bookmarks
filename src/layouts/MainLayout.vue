@@ -12,7 +12,9 @@ const drawerOpen = ref(false);
 </script>
 
 <template>
-  <div class="h-screen w-full bg-base-100 text-base-content overflow-hidden">
+  <div
+    class="h-full w-full bg-base-100 text-base-content overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+  >
     <div
       :class="[
         isFullScreen ? '' : 'drawer lg:drawer-open',
