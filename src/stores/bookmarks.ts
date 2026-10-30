@@ -28,6 +28,12 @@ export interface BrowserTab {
   lastActiveAt: number;
 }
 
+export type BrowserLayout =
+  | "single"
+  | "split-right"
+  | "split-bottom"
+  | "floating";
+
 export const useBookmarkStore = defineStore("bookmarks", () => {
   const bookmarks = ref<Bookmark[]>([]);
   const folders = ref<Folder[]>([
@@ -46,6 +52,9 @@ export const useBookmarkStore = defineStore("bookmarks", () => {
   // Browser tabs (in-memory)
   const browserTabs = ref<BrowserTab[]>([]);
   const activeBrowserTabId = ref<string | null>(null);
+  const browserLayout = ref<BrowserLayout>("single");
+  const primaryBrowserTabId = ref<string | null>(null);
+  const secondaryBrowserTabId = ref<string | null>(null);
 
   let store: Store | null = null;
   const STORE_PATH = "bookmarks.json";
@@ -111,13 +120,18 @@ export const useBookmarkStore = defineStore("bookmarks", () => {
         theme.value = uiTheme.trim();
       }
 
-      const uiBrowserToolbarAutoHideMs = await store.get<number>("ui.browserToolbarAutoHideMs");
+      const uiBrowserToolbarAutoHideMs = await store.get<number>(
+        "ui.browserToolbarAutoHideMs",
+      );
       if (
         typeof uiBrowserToolbarAutoHideMs === "number" &&
         Number.isFinite(uiBrowserToolbarAutoHideMs)
       ) {
         // 0 disables auto-hide
-        const clamped = Math.min(5000, Math.max(0, Math.round(uiBrowserToolbarAutoHideMs)));
+        const clamped = Math.min(
+          5000,
+          Math.max(0, Math.round(uiBrowserToolbarAutoHideMs)),
+        );
         browserToolbarAutoHideMs.value = clamped;
       }
 
@@ -156,6 +170,41 @@ export const useBookmarkStore = defineStore("bookmarks", () => {
     if (!tab) return;
     tab.lastActiveAt = Date.now();
     activeBrowserTabId.value = id;
+    if (!primaryBrowserTabId.value) {
+      primaryBrowserTabId.value = id;
+    }
+  };
+
+  const setBrowserLayout = (layout: BrowserLayout) => {
+    browserLayout.value = layout;
+    if (layout !== "single" && !secondaryBrowserTabId.value) {
+      const fallback = browserTabs.value.find(
+        (t) => t.id !== primaryBrowserTabId.value,
+      );
+      secondaryBrowserTabId.value = fallback?.id ?? null;
+    }
+  };
+
+  const setPrimaryBrowserTab = (id: string) => {
+    if (!browserTabs.value.some((t) => t.id === id)) return;
+    primaryBrowserTabId.value = id;
+    activeBrowserTabId.value = id;
+    if (secondaryBrowserTabId.value === id) {
+      secondaryBrowserTabId.value =
+        browserTabs.value.find((t) => t.id !== id)?.id ?? null;
+    }
+  };
+
+  const setSecondaryBrowserTab = (id: string) => {
+    if (!browserTabs.value.some((t) => t.id === id)) return;
+    if (primaryBrowserTabId.value === id) {
+      const fallback = browserTabs.value.find((t) => t.id !== id);
+      primaryBrowserTabId.value = fallback?.id ?? id;
+    }
+    secondaryBrowserTabId.value = id;
+    if (browserLayout.value === "single") {
+      browserLayout.value = "split-right";
+    }
   };
 
   const createOrActivateBrowserTab = (tabUrl: string, tabTitle?: string) => {
@@ -175,12 +224,16 @@ export const useBookmarkStore = defineStore("bookmarks", () => {
     const newTab: BrowserTab = {
       id: crypto.randomUUID(),
       url,
-      title: typeof tabTitle === "string" ? tabTitle.trim() || undefined : undefined,
+      title:
+        typeof tabTitle === "string" ? tabTitle.trim() || undefined : undefined,
       createdAt: now,
       lastActiveAt: now,
     };
     browserTabs.value.push(newTab);
     activeBrowserTabId.value = newTab.id;
+    if (!primaryBrowserTabId.value) {
+      primaryBrowserTabId.value = newTab.id;
+    }
     return newTab.id;
   };
 
@@ -191,9 +244,23 @@ export const useBookmarkStore = defineStore("bookmarks", () => {
 
     browserTabs.value.splice(idx, 1);
 
+    if (primaryBrowserTabId.value === id) {
+      const next =
+        browserTabs.value[Math.min(idx, browserTabs.value.length - 1)] ??
+        browserTabs.value[0] ??
+        null;
+      primaryBrowserTabId.value = next?.id ?? null;
+    }
+    if (secondaryBrowserTabId.value === id) {
+      secondaryBrowserTabId.value =
+        browserTabs.value.find((t) => t.id !== primaryBrowserTabId.value)?.id ??
+        null;
+    }
+
     if (activeBrowserTabId.value !== id) return;
 
-    const next = browserTabs.value[Math.min(idx, browserTabs.value.length - 1)] ?? null;
+    const next =
+      browserTabs.value[Math.min(idx, browserTabs.value.length - 1)] ?? null;
     activeBrowserTabId.value = next?.id ?? null;
     if (next) {
       next.lastActiveAt = Date.now();
@@ -338,9 +405,11 @@ export const useBookmarkStore = defineStore("bookmarks", () => {
       } else {
         result = result.filter((b) => {
           // 'uncategorized' case
-          if (selectedFolderIds.value.includes("uncategorized") && !b.folderId) return true;
+          if (selectedFolderIds.value.includes("uncategorized") && !b.folderId)
+            return true;
           // normal folders
-          if (b.folderId && selectedFolderIds.value.includes(b.folderId)) return true;
+          if (b.folderId && selectedFolderIds.value.includes(b.folderId))
+            return true;
           return false;
         });
       }
@@ -420,11 +489,14 @@ export const useBookmarkStore = defineStore("bookmarks", () => {
   // --- Bookmark Actions ---
 
   const reorderBookmarks = async (visibleOrderedIds: string[]) => {
-    if (!Array.isArray(visibleOrderedIds) || visibleOrderedIds.length === 0) return;
+    if (!Array.isArray(visibleOrderedIds) || visibleOrderedIds.length === 0)
+      return;
 
     const idSet = new Set(visibleOrderedIds);
 
-    const currentSubsetIds = bookmarks.value.filter((b) => idSet.has(b.id)).map((b) => b.id);
+    const currentSubsetIds = bookmarks.value
+      .filter((b) => idSet.has(b.id))
+      .map((b) => b.id);
     if (
       currentSubsetIds.length === visibleOrderedIds.length &&
       currentSubsetIds.every((id, idx) => id === visibleOrderedIds[idx])
@@ -490,7 +562,13 @@ export const useBookmarkStore = defineStore("bookmarks", () => {
     browserToolbarHotzoneRevealDelayMs,
     browserTabs,
     activeBrowserTabId,
+    browserLayout,
+    primaryBrowserTabId,
+    secondaryBrowserTabId,
     activateBrowserTab,
+    setBrowserLayout,
+    setPrimaryBrowserTab,
+    setSecondaryBrowserTab,
     createOrActivateBrowserTab,
     closeBrowserTab,
     addFolder,

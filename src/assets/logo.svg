@@ -1,11 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <defs>
-    <style>
-      .stroke{stroke:currentColor;fill:none;stroke-width:1.5;}
-      .fill{fill:currentColor;}
-    </style>
-  </defs>
-  <rect x="2.5" y="2.5" width="19" height="19" rx="5" class="stroke"/>
-  <path class="fill" d="M9 6.5h6a1.5 1.5 0 0 1 1.5 1.5v10l-4.5-3-4.5 3v-10A1.5 1.5 0 0 1 9 6.5z"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#165C50"/>
+  <path d="M104 212C164 204 218 168 256 116C294 168 348 204 408 212L408 242C344 234 293 207 256 169C219 207 168 234 104 242Z" fill="#FFFFFF"/>
+  <path d="M178 258H334V402L256 358L178 402Z" fill="#FFFFFF"/>
+  <path d="M226 284H286" fill="none" stroke="#165C50" stroke-width="18" stroke-linecap="round"/>
+  <rect x="352" y="112" width="48" height="48" rx="12" fill="#F27665"/>
 </svg>
